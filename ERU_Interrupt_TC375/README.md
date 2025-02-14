@@ -65,8 +65,7 @@ IFX_INTERRUPT(isr, vectabNum, priority);
 
 ## 总结
 
-这里只是简单进行了下介绍，上面的内容如果要展开来说的话其实可以讲非常多的内容，这里就不再展开来介绍了。如果对电源、时钟、启动等细节内容感兴趣的也可以参考英飞凌官方的视频介绍：
+`ERU` 模块使用比较简单，这里就演示到此了。
 
-[《AURIX™ TC3xx 进阶培训》https://www.bilibili.com/video/BV12W4y1M7UB](https://www.bilibili.com/video/BV12W4y1M7UB)
 
-  
+
