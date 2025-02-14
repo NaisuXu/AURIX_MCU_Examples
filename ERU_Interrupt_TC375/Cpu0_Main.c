@@ -27,6 +27,7 @@
 #include "Ifx_Types.h"
 #include "IfxCpu.h"
 #include "IfxScuWdt.h"
+#include "ERU_Interrupt.h"
 
 IFX_ALIGN(4) IfxCpu_syncEvent g_cpuSyncEvent = 0;
 
@@ -44,7 +45,9 @@ void core0_main(void)
     IfxCpu_emitEvent(&g_cpuSyncEvent);
     IfxCpu_waitEvent(&g_cpuSyncEvent, 1);
     
-    
+    /* Initialize ERU module and peripherals for ERU_Interrupt example */
+    initPeripheralsAndERU();
+
     while(1)
     {
     }

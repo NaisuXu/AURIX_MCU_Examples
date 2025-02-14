@@ -2,91 +2,65 @@
 
 ## 目的
 
-这个例程比较简单，通过 `ERU` 实现外部中断功能，和官方示例差不多，增加一些注释说明。一些更为基础的资料等内容可以参考下面文章：
+这个例程比较简单，这里直接就放了官方例程，通过 `ERU` 实现外部中断功能，这个文档中增加一些说明。一些更为基础的资料等内容可以参考下面文章：
 
 [《英飞凌 AURIX TriCore 单片机开发入门》](https://blog.csdn.net/Naisu_kun/article/details/136997615)
 
 本文中例程基于英飞凌官方 [KIT_A2G_TC375_LITE](https://www.infineon.com/cms/en/product/evaluation-boards/kit_a2g_tc375_lite/) 开发板运行测试。
 
+## 基础说明
 
-## 模板工程
+基础说明其实官方例程中的 [文档](https://github.com/Infineon/AURIX_code_examples/blob/master/code_examples/ERU_Interrupt_1_KIT_TC375_LK/README.md) 和代码中的注释讲的也比较清楚了。官方例程实现了外部引脚输入，上升沿和下降沿都触发中断，在中断中翻转IO口。用飞线连接下图两个点，然后按下按键就可以看到LED状态翻转。
 
-在 `ADS` 中 `Create New AURIX Project` 后选择对应的芯片就会生成该芯片的模板工程。模板工程目录结构如下：
-
-![](./img/project.png)
-
-模板工程中东西很多，入门点个灯的话大部分不用关心，随便找个 `Cpux_Main.c` 写代码就行。
-
-稍微需要注意的是外部晶体频率的配置，在 `Ifx_Cfg.h` 文件中：
-
-![](./img/xtal.png)
-
-
-在默认模板工程的启动文件中会去设置系统的各个部分时钟，默认情况下这些时钟都是会设置成可设置的最大值的：
-
-![](./img/clock.png)
+![connect](img/connect.png)
 
 
 
-## Blinky_LED
-
-这里说的 `Blinky_LED` 指的是将用单片机一个引脚设置为输出模式来驱动 `LED` 。
-
-英飞凌官方提供了 `Blinky_LED` 的例程，可以直接导入运行：
-
-![](./img/examples.png)
+TC3XX的SCU模块下的ERU模块可以支持外部信号输入来触发一些信号输出，可以用来实现外部中断功能。该模块有8个输入通道和8个输出通道。总体配置就是选择输入通道与事件配置，关联配置到输出通道，并指定输出触发规则和行为。
 
 
-通过 `Pin Mapper` 工具配置对应的引脚，生成初始化代码：
 
-![](./img/pincfg.png)
+> - Initialize external request pin (*IfxScuEru_initReqPin()*)
+> - Select which edge should trigger the interrupt (*IfxScuEru_enableRisingEdgeDetection()* and/or *IfxScuEru_enableFallingEdgeDetection()*)
+> - Enable generation of trigger events with the function *IfxScuEru_enableTriggerPulse()*
+> - Choose the output channel by selecting the Output Gating Unit (OGUz) and the trigger pulse output (TRxz)
+>   - An event from the Event Trigger Logic (ETL0) triggers the OGU0 (signal TRx0). The function *IfxScuEru_connectTrigger()* determines the output channel for the trigger event
+> - Select the condition to generate an interrupt with the function *IfxScuEru_setInterruptGatingPattern()*
+> - Configure and enable the service request with the functions *IfxSrc_init()* and *IfxSrc_enable()*
 
 
-本示例代码如下：
 
-![](./img/code.png)
+![Configuration_ERU_Interrupt](img/Configuration_ERU_Interrupt.png)
+
+
+
+
+
+
+## 中断回调函数设置
+
+TC3XX总共支持1024个中断请求，每个中断控制核心最多支持255个请求。中断回调函数由下面宏进行设置：
 
 ```c
-#include "IfxPort.h"
-#include "Bsp.h"
-
-#define LED_PORT             MODULE_P00
-#define LED_PIN              5
-#define LED_PORT_MODE        IfxPort_Mode_outputPushPullGeneral
-#define LED_PORT_PAD_DRIVER  IfxPort_PadDriver_cmosAutomotiveSpeed2
-
-#define WAIT_TIME            500
-
-void initLED(void)
-{
-    // 设置 P00.5 为推挽输出模式
-    IfxPort_setPinMode(&LED_PORT, LED_PIN, LED_PORT_MODE);
-    // 设置 P00.5 为cmos电平、启动能力2(Strong driver, medium edge (“sm”))
-    IfxPort_setPinPadDriver(&LED_PORT, LED_PIN, LED_PORT_PAD_DRIVER);
-
-    // 设置 P00.5 输出高电平(根据开发板上这个LED的接法，这会熄灭LED)
-    IfxPort_setPinState(&LED_PORT, LED_PIN, IfxPort_State_high);
-}
-
-void blinkLED(void)
-{
-    // 翻转 P00.5 输出电平
-    IfxPort_setPinState(&LED_PORT, LED_PIN, IfxPort_State_toggled);
-
-    // 等待 500ms
-    waitTime(IfxStm_getTicksFromMilliseconds(BSP_DEFAULT_TIMER, WAIT_TIME));
-}
+/* Macro to define Interrupt Service Routine.
+ *
+ * IFX_INTERRUPT(isr, vectabNum, priority)
+ *  - isr: Name of the ISR function.
+ *  - vectabNum: Vector table number.
+ *  - priority: Interrupt priority. Refer Usage of Interrupt Macro for more details.
+ */
+IFX_INTERRUPT(isr, vectabNum, priority);
 ```
 
-英飞凌的 `iLLD` 库中对同一个事情的操作封装了非常多的函数，对于本例程中IO操作就有下面好多：
+向量表编号选项如下（注意中间插了DMA）：
 
-```c
-void IfxPort_setPinModeOutput(Ifx_P *port, uint8 pinIndex, IfxPort_OutputMode mode, IfxPort_OutputIdx index)
+![TOS](img/TOS.png)
 
-void IfxPort_setPinHigh(Ifx_P *port, uint8 pinIndex)
-void IfxPort_setPinLow(Ifx_P *port, uint8 pinIndex)
-void IfxPort_togglePin(Ifx_P *port, uint8 pinIndex)
-```
+中断优先级如下，编号越大优先级越高。对于CPU而言优先级0是不启用；对于DMA而言0是通道0，另最大不能超过DMA通道数：
+
+![SRPN](img/SRPN.png)
+
+
 
 
 ## 总结
